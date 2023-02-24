@@ -1,6 +1,5 @@
 EBNF grammar of rclang
 Date: 2023.02.24
-Copyright (c) 2023 Ziyao.
 This document is in the public domain.
 
 <type>			::= 'val' | 'ptr' | 'sal' | 'u8' | 's8' | 'u16' |
@@ -10,11 +9,12 @@ Expression
 
 <value>			::= <or> [ '?' <or> ':' <value>]
 <or>			::= <join> ( ('|' | '^') <join>)*
-<and>			::= <equality> ('&' <equality>)*
+<and>			::= <not> ('&' <not>)*
+<not>			::= ['!'] <equality>
 <equality>		::= <relation> (('==' | '!=') <relation>)*
-<relation>		::= <shift> (('>' | '<' | '=>' | '<=') <shift>)*
+<relation>		::= <shift> (('>' | '<' | '>=' | '<=') <shift>)*
 <shift>			::= <expr> (('<<' | '>>') <expr>)*
-<expr>			::= <term> (('+' | '-') <term>)*
+<expr>			::= ['+' | '-'] <term> (('+' | '-') <term>)*
 <term>			::= <factor> (('*' | '/' | '%') <factor>)*
 <factor>		::= <address> | num | id | '(' <value> ')' |
 			    <functioncall>
@@ -41,5 +41,7 @@ Definition and Declaration
 
 <vardefinition>		::= <type> (<id> '=' <value>)+ ';'
 <funcdefinition>	::= 'fn' <type> id '(' (<type> id)* ')' <block>
+<funcdeclaration>	::= 'dcl' 'fn' <type> id '(' <type>* ')';
 
-<program>		::= <funcdefinition>*
+<program>		::= (<funcdefinition>		|
+			     <funcdeclaration>)*
