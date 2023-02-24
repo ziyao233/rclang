@@ -1,0 +1,45 @@
+EBNF grammar of rclang
+Date: 2023.02.24
+Copyright (c) 2023 Ziyao.
+This document is in the public domain.
+
+<type>			::= 'val' | 'ptr' | 'sal' | 'u8' | 's8' | 'u16' |
+			    's16' | 'u32' | 's32' | 'u64' | 's64'
+
+Expression
+
+<value>			::= <or> [ '?' <or> ':' <value>]
+<or>			::= <join> ( ('|' | '^') <join>)*
+<and>			::= <equality> ('&' <equality>)*
+<equality>		::= <relation> (('==' | '!=') <relation>)*
+<relation>		::= <shift> (('>' | '<' | '=>' | '<=') <shift>)*
+<shift>			::= <expr> (('<<' | '>>') <expr>)*
+<expr>			::= <term> (('+' | '-') <term>)*
+<term>			::= <factor> (('*' | '/' | '%') <factor>)*
+<factor>		::= <address> | num | id | '(' <value> ')' |
+			    <functioncall>
+<address>		::= <type> '(' <value> ')' [ '[' <value> ']' ]
+<functioncall>		::= <id> '(' <value>* ')'
+
+Statements
+
+<location>		::= <id> | <address>
+<statement>		::= (('ret' [value])		|
+			     'break'			|
+			     <if>			|
+			     <for>			|
+			     <location> '=' <value>	|
+			     <functioncall>		|
+			     <vardefinition>		|
+			     <block>) ';'
+<block>			::= '{' <statement>* '}'
+<if>			::= 'if' <value> <block> |
+			    ['else' <block>]
+<for>			::= 'for' <value> <block>
+
+Definition and Declaration
+
+<vardefinition>		::= <type> (<id> '=' <value>)+ ';'
+<funcdefinition>	::= 'fn' <type> id '(' (<type> id)* ')' <block>
+
+<program>		::= <funcdefinition>*
