@@ -1,0 +1,4 @@
+fn sal abs(sal v)
+{
+	ret v < 0 ? (-v) : v;
+}

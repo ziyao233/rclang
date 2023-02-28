@@ -1,0 +1,2 @@
+dcl fn val partition(ptr,val);
+dcl fn val qsort(ptr,val);
