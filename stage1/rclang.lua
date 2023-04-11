@@ -1,6 +1,7 @@
+#!/usr/bin/env lua5.4
 --[[
 --	rclang stage 1 compiler
---	Date:2023.02.28
+--	Date:2023.04.11
 --	By MIT License.
 --	Copyright (c) 2023 Ziyao.
 --]]
@@ -12,51 +13,53 @@ local math		= require "math";
 local gConf = {
 			output = arg[2],
 			input = arg[1],
+			debug = true,
 	      };
 
-local function report(msg)
-	error(msg);
+local function
+report(msg, ...)
+	error(msg:format(...));
 end
 
 --[[	The lexer	]]
-local gSource,gLook,gPos;
+local gSource, gLook, gPos;
 local gSingleOpList <const> = {'?',':',',','|','^','&','+','-','*','/','%',
 			       '(',')',';','{','}','>','<','!','=','[',']'};
 local gSingleOp = {};
-for _,c in pairs(gSingleOpList)
+for _, c in pairs(gSingleOpList)
 do
 	gSingleOp[c] = true;
 end
-local gKeywordList <const> = {"for","fn","if","else","dcl","ret","break"};
+local gKeywordList <const> = {"for", "fn", "if", "else", "dcl", "ret", "break"};
 local gKeyword = {};
-for _,keyword in pairs(gKeywordList)
+for _, keyword in pairs(gKeywordList)
 do
 	gKeyword[keyword] = true;
 end
-local gType = {"ptr","val","sal","u8","s8","u16","s16",
-			   "u32","s32","u64","s64"};
-local gType <const> = 
+local gType <const> =
 	{
-		ptr	= { size = 64,	signed = false	},
-		val	= { size = 64,	signed = false	},
-		sal	= { size = 64,	signed = true	},
-		u8	= { size = 8,	signed = false	},
-		s8	= { size = 8,	signed = true	},
-		u16	= { size = 16,	signed = false	},
-		s16	= { size = 16,	signed = true	},
-		u32	= { size = 32,	signed = false	},
-		s32	= { size = 32,	signed = true	},
-		u64	= { size = 64,	signed = false	},
-		s64	= { size = 64,	signed = true	},
+		ptr	= { size = 8,	signed = false	},
+		val	= { size = 8,	signed = false	},
+		sal	= { size = 8,	signed = true	},
+		u8	= { size = 1,	signed = false	},
+		s8	= { size = 1,	signed = true	},
+		u16	= { size = 2,	signed = false	},
+		s16	= { size = 2,	signed = true	},
+		u32	= { size = 4,	signed = false	},
+		s32	= { size = 4,	signed = true	},
+		u64	= { size = 8,	signed = false	},
+		s64	= { size = 8,	signed = true	},
 	};
-local function next()
+
+local function
+next()
 	gPos = gSource:match("()%S",gPos);
 	if not gPos
 	then
 		gLook = { type = "EOF" };
 		return;
 	end
-	local c,n = gSource:sub(gPos,gPos),gSource:sub(gPos + 1,gPos + 1);
+	local c,n = gSource:sub(gPos, gPos), gSource:sub(gPos + 1, gPos + 1);
 
 	if (c == '=' or c == '!' or c == '>' or c == '<') and n == '='
 	then
@@ -87,13 +90,13 @@ local function next()
 	elseif c:match("[%a_]")
 	then
 		local id;
-		id,gPos = gSource:match("([%a_]+)()",gPos);
+		id, gPos = gSource:match("([%w_]+)()",gPos);
 
 		if gType[id]
 		then
 			gLook = {
 					type	= "type",
-					info	= gType[id],
+					info	= id,
 				};
 		elseif gKeyword[id]
 		then
@@ -105,46 +108,137 @@ local function next()
 				};
 		end
 	else
-		error(("Unrecognised character %s"):format(c));
+		report("Unrecognised character %s", c);
 	end
 	return gLook;
 end
 
-local function match(type,msg)
+local function
+match(type, msg)
 	if gLook.type ~= type
 	then
-		error(("Expected %s, got %s"):format(msg or type,gLook.type));
+		report("Expected %s, got %s", msg or type, gLook.type);
 	end
 	local tok = gLook;
 	next();
 	return tok;
 end
 
-local function lexerInit(path)
+local function
+lexerInit(path)
 	gSource = assert(io.open(path)):read("a");
-	gLook,gIndex = "",1;
+	gLook,gIndex = "", 1;
 	next();
 end
 
 local gOutputFile;
-local function codegenInit(path)
-	gOutputFile = path and assert(io.open(path,"w")) or io.stdout;
+local function
+codegenInit(path)
+	gOutputFile = path and assert(io.open(path, "w")) or io.stdout;
 end
 
-local function emit(s)
+local function
+emit(s)
 	gOutputFile:write("\t" .. s .. "\n");
 end
 
-local function printSymtab(symtab)
+local function
+printSymtab(symtab)
+	if not gConf.debug
+	then
+		return;
+	end
 	io.stderr:write("\n====Symbol Table====\n");
 	for name,sym in pairs(symtab)
 	do
-		io.stderr:write(("%s:\ttype=%s\n"):format(name,sym.type));
+		io.stderr:write(("%s:\ttype=%s, static=%q\n"):
+				format(name, sym.type, sym.static or false));
 	end
+
+	io.stderr:write("\n\n");
 end
 
-local pFuncDec;
+local function
+deriveSymtab(outside)
+	return setmetatable({},{
+				__index = outside,
+			       }
+			   );
+end
 
+local pFuncDec, pFuncDef, pBlock, pSvarDef;
+
+pBlock = function(outsideScope, additional)
+	local symtab = deriveSymtab(outsideScope);
+	for name, info in pairs(additional or {})
+	do
+		symtab[name] = info;
+	end
+
+	printSymtab(symtab);
+
+	match('{');
+	match('}');
+end
+
+pFuncDef = function(symtab)
+	match("fn");
+	local prototype = {
+				type	= "function",
+				retType	= match("type").info,
+				argType	= {},
+				def	= true,
+				static	= true;
+			  };
+
+	local name = match("id").id;
+	if symtab[name] and symtab[name].def
+	then
+		report("Duplicated definition of function %s", name);
+	end
+	symtab[name] = prototype;
+
+	match('(');
+
+	-- XXX: Add type checks
+	local argNames = {};
+	while gLook.type == "type"
+	do
+		local type = match("type").info;
+		local name = match("id").id;
+		table.insert(prototype.argType, type);
+		table.insert(argNames, name);
+
+		if gLook.type ~= ','
+		then
+			break;
+		end
+		next();
+	end
+	match(')');
+
+	local argSize = 0;
+	for i, v in ipairs(prototype.argType)
+	do
+		argSize = argSize + gType[v].size;
+	end
+	prototype.argSize = argSize;
+
+	argSize = -argSize;
+	local argSyms = {};
+	for i, v in ipairs(prototype.argType)
+	do
+		argSyms[argNames[i]] = {
+					type	= v,
+					offset	= argSize,
+				       };
+		argSize = argSize + gType[v].size;
+	end
+
+	pBlock(symtab, argSyms);
+end
+
+-- XXX: Add type checks
 pFuncDec = function(symtab)
 	match("dcl");
 	match("fn");
@@ -153,12 +247,14 @@ pFuncDec = function(symtab)
 				type	= "function",
 				retType	= match("type").info,
 				argType = {},
+				def	= false,
+				static	= true,
 			  };
 	local name = match("id").id;
 	match('(');
 	while gLook.type == "type"
 	do
-		table.insert(prototype.argType,match("type").info);
+		table.insert(prototype.argType, match("type").info);
 		if gLook.type ~= ','
 		then
 			break;
@@ -169,12 +265,58 @@ pFuncDec = function(symtab)
 	symtab[name] = prototype;
 end
 
-local function pProgram()
+pSvarDef = function(symtab)
+	local t = match("type").info;
+
+	while gLook.type == "id"
+	do
+		local type = gLook.type;
+		symtab[match("id").id] = {
+						type	= t,
+						static	= true,
+					 };
+		if gLook.type ~= ','
+		then
+			break;
+		end
+		next();
+	end
+end
+
+local function
+pProgram()
 	local symtab = {};
+	emit ".text";
 	while gLook.type ~= "EOF"
 	do
-		pFuncDec(symtab);
-		match(';');
+		if gLook.type == "fn"
+		then
+			pFuncDef(symtab);
+		elseif gLook.type == "dcl"
+		then
+			pFuncDec(symtab);
+			match(';');
+		elseif gLook.type == "type"
+		then
+			pSvarDef(symtab);
+			match(';');
+		else
+			report(("Unexpected token %s\n"):format(gLook.type));
+		end
+	end
+
+	emit(".data");
+	for name, info in pairs(symtab)
+	do
+		if info.static and info.type ~= "function"
+		then
+			local size = gType[info.type].size;
+			emit('.' .. (size == 1 and "byte" or
+				     size == 2 and "word" or
+				     size == 4 and "long" or
+						   "quad") ..
+			    ' ' .. name);
+		end
 	end
 	printSymtab(symtab);
 end
@@ -190,5 +332,6 @@ then
 end
 
 lexerInit(gConf.input);
+codegenInit(gConf.output);
 pProgram();
 match("EOF");
