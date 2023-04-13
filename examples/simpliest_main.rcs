@@ -1,6 +1,6 @@
 fn s32 main()
 {
-	ret;
+	ret 0;
 }
 
 export main;

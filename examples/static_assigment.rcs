@@ -1,0 +1,19 @@
+val foo;
+ptr p;
+fn val assignment()
+{
+	foo = 1;
+	ret;
+}
+
+dcl fn val print();
+
+fn s32 main()
+{
+	p = $assignment;
+	assignment();
+	print();
+	ret 0;
+}
+
+export main, foo, p;

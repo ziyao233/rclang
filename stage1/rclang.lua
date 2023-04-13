@@ -24,7 +24,8 @@ end
 --[[	The lexer	]]
 local gSource, gLook, gPos;
 local gSingleOpList <const> = {'?',':',',','|','^','&','+','-','*','/','%',
-			       '(',')',';','{','}','>','<','!','=','[',']'};
+			       '(',')',';','{','}','>','<','!','=','[',']',
+			       '$'};
 local gSingleOp = {};
 for _, c in pairs(gSingleOpList)
 do
@@ -51,6 +52,8 @@ local gType <const> =
 		u64	= { size = 8,	signed = false	},
 		s64	= { size = 8,	signed = true	},
 	};
+local gMainRegister = { [1] = "%al", [2] = "%ax",
+			[4] = "%eax", [8] =  "%rax" };
 
 local function
 next()
@@ -85,7 +88,7 @@ next()
 					      "(%d+)()",
 					  gPos);
 		gLook =  {
-				type	= "number",
+				type	= "integer",
 				value	= tonumber(sNum),
 			 };
 	elseif c:match("[%a_]")
@@ -123,6 +126,11 @@ match(type, msg)
 	local tok = gLook;
 	next();
 	return tok;
+end
+
+local function
+unexpected()
+	report(("Unexpected token '%s'"):format(gLook.type));
 end
 
 local function
@@ -179,15 +187,97 @@ deriveSymtab(outside)
 			   );
 end
 
-local pFuncDef, pStatement;
+local pFuncDef, pStatement, pFuncCall, pValue, pFactor;
+
+local function
+checkSym(symtab, id)
+	if not symtab[id]
+	then
+		report("Undefined symbol " .. id);
+	end
+	return symtab[id];
+end
+
+local function
+getSymAddress(name, sym)
+	if sym.type == "function" or sym.static
+	then
+		return name;
+	else
+		return ("%%%d(%rbp)"):format(sym.offset);
+	end
+end
+
+pFactor = function(symtab)
+	if gLook.type == "integer"
+	then
+		emit(("movq	$%d,	%%rax"):format(match("integer").value));
+		return gType.val;
+	elseif gLook.type == "$"
+	then
+		match '$';
+		local id = match("id").id;
+		local sym = checkSym(symtab, id);
+		emit(("leaq	%s,	%%rax"):format(
+		     getSymAddress(id, sym)));
+		return gType.ptr;
+	else
+		unexpected();
+	end
+end
+
+pValue = function(symtab)
+	return pFactor(symtab);
+end
+
+pFuncCall = function(id, symtab)
+	local sym = checkSym(symtab, id);
+
+	if sym.type ~= "function"
+	then
+		report(("Cannot call non-function symbol %s"):format(id));
+	end
+
+	match '(';
+	match ')';
+
+	emit("callq " .. id);
+
+	return;
+end
 
 pStatement = function(symtab)
 	if gLook.type == "ret"
 	then
 		match "ret";
+		if gLook.type ~= ';'
+		then
+			pValue(symtab);	-- stored in %rax as ABI speicifed
+		end
 		match ';';
 		emit "leaveq";
 		emit "retq";
+	elseif gLook.type == "id"
+	then
+		local id = match("id").id;
+		if gLook.type == '('
+		then
+			pFuncCall(id, symtab);
+			match ';';
+		elseif gLook.type == '='
+		then
+			match '=';
+			local sym = symtab[id];
+			local type = pValue(symtab);
+			match ';';
+			emit(("mov	%s,	%s"):format(
+			      gMainRegister[type.size],
+			      getSymAddress(id, sym)));
+		else
+			unexpected();
+		end
+	else
+		unexpected();
 	end
 end
 
@@ -362,7 +452,7 @@ pProgram()
 			pExport(symtab);
 			match ';';
 		else
-			report(("Unexpected token %s\n"):format(gLook.type));
+			unexpected();
 		end
 	end
 
@@ -372,11 +462,8 @@ pProgram()
 		if info.static and info.type ~= "function"
 		then
 			local size = gType[info.type].size;
-			emit('.' .. (size == 1 and "byte" or
-				     size == 2 and "word" or
-				     size == 4 and "long" or
-						   "quad") ..
-			    ' ' .. name);
+			emitLabel(name);
+			emit((".zero " .. size));
 		end
 	end
 	printSymtab(symtab);
