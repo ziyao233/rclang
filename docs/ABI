@@ -1,0 +1,9 @@
+Registers
+
+ o All registers are free to use.
+
+Function Calls
+
+ o Arguments are pushed onto the stack from left to right
+ o rsp is adjusted by the caller
+ o rax is used to store the return value of a function

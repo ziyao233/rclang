@@ -1,0 +1,6 @@
+fn s32 main()
+{
+	ret;
+}
+
+export main;

@@ -30,7 +30,8 @@ for _, c in pairs(gSingleOpList)
 do
 	gSingleOp[c] = true;
 end
-local gKeywordList <const> = {"for", "fn", "if", "else", "dcl", "ret", "break"};
+local gKeywordList <const> = {"for", "fn", "if", "else", "dcl",
+			      "ret", "break", "export"};
 local gKeyword = {};
 for _, keyword in pairs(gKeywordList)
 do
@@ -135,11 +136,23 @@ local gOutputFile;
 local function
 codegenInit(path)
 	gOutputFile = path and assert(io.open(path, "w")) or io.stdout;
+	gLabelCount = 0;
 end
 
 local function
 emit(s)
 	gOutputFile:write("\t" .. s .. "\n");
+end
+
+local function
+emitLabel(l)
+	gOutputFile:write(l .. ":\n");
+end
+
+local function
+getLocalLabel()
+	gLabelCount = gLabelCount + 1;
+	return ".L" .. (gLabel - 1);
 end
 
 local function
@@ -166,7 +179,17 @@ deriveSymtab(outside)
 			   );
 end
 
-local pFuncDec, pFuncDef, pBlock, pSvarDef;
+local pFuncDef, pStatement;
+
+pStatement = function(symtab)
+	if gLook.type == "ret"
+	then
+		match "ret";
+		match ';';
+		emit "leaveq";
+		emit "retq";
+	end
+end
 
 pBlock = function(outsideScope, additional)
 	local symtab = deriveSymtab(outsideScope);
@@ -175,14 +198,22 @@ pBlock = function(outsideScope, additional)
 		symtab[name] = info;
 	end
 
-	printSymtab(symtab);
+	match '{';
 
-	match('{');
-	match('}');
+	while gLook.type == "ret" or gLook.type == "break" or
+	      gLook.type == "if" or gLook.type == "for" or
+	      gLook.type == "id" or gLook.type == "type" or
+	      gLook.type == '{'
+	do
+		pStatement(symtab);
+	end
+
+	match '}';
 end
 
-pFuncDef = function(symtab)
-	match("fn");
+local function
+pFuncDef(symtab)
+	match "fn";
 	local prototype = {
 				type	= "function",
 				retType	= match("type").info,
@@ -198,7 +229,7 @@ pFuncDef = function(symtab)
 	end
 	symtab[name] = prototype;
 
-	match('(');
+	match '(';
 
 	-- XXX: Add type checks
 	local argNames = {};
@@ -215,7 +246,7 @@ pFuncDef = function(symtab)
 		end
 		next();
 	end
-	match(')');
+	match ')';
 
 	local argSize = 0;
 	for i, v in ipairs(prototype.argType)
@@ -235,13 +266,17 @@ pFuncDef = function(symtab)
 		argSize = argSize + gType[v].size;
 	end
 
+	emitLabel(name);
+	emit "push	%rbp";
+	emit "movq	%rsp,	%rbp";
 	pBlock(symtab, argSyms);
 end
 
 -- XXX: Add type checks
-pFuncDec = function(symtab)
-	match("dcl");
-	match("fn");
+local function
+pFuncDec(symtab)
+	match "dcl";
+	match "fn";
 
 	local prototype = {
 				type	= "function",
@@ -251,7 +286,7 @@ pFuncDec = function(symtab)
 				static	= true,
 			  };
 	local name = match("id").id;
-	match('(');
+	match '(';
 	while gLook.type == "type"
 	do
 		table.insert(prototype.argType, match("type").info);
@@ -261,11 +296,12 @@ pFuncDec = function(symtab)
 		end
 		next();
 	end
-	match(')');
+	match ')';
 	symtab[name] = prototype;
 end
 
-pSvarDef = function(symtab)
+local function
+pSvarDef(symtab)
 	local t = match("type").info;
 
 	while gLook.type == "id"
@@ -284,6 +320,27 @@ pSvarDef = function(symtab)
 end
 
 local function
+pExport(symtab)
+	match "export";
+
+	while gLook.type == "id"
+	do
+		local id	= match("id").id;
+		local sym	= symtab[id];
+
+		assert(sym.type == "function" or sym.static);
+
+		emit(".global " .. id);
+
+		if gLook.type ~= ','
+		then
+			break;
+		end
+		match ',';
+	end
+end
+
+local function
 pProgram()
 	local symtab = {};
 	emit ".text";
@@ -295,11 +352,15 @@ pProgram()
 		elseif gLook.type == "dcl"
 		then
 			pFuncDec(symtab);
-			match(';');
+			match ';';
 		elseif gLook.type == "type"
 		then
 			pSvarDef(symtab);
-			match(';');
+			match ';';
+		elseif gLook.type == "export"
+		then
+			pExport(symtab);
+			match ';';
 		else
 			report(("Unexpected token %s\n"):format(gLook.type));
 		end
@@ -334,4 +395,4 @@ end
 lexerInit(gConf.input);
 codegenInit(gConf.output);
 pProgram();
-match("EOF");
+match "EOF";

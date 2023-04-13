@@ -1,0 +1,3 @@
+val isDebug, isDemo;
+ptr mainFunc;
+u8 simpleChar;

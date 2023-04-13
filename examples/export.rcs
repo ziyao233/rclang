@@ -1,0 +1,6 @@
+fn val add(val a, val b) {}
+val isDebug, isDemo;
+ptr mainFunc;
+u8 simpleChar;
+
+export add, isDebug, mainFunc;
