@@ -1,8 +1,14 @@
-val foo;
+val foo, one64;
+s16 one;
 ptr p;
+dcl s32 array;
 fn val assignment()
 {
 	foo = 1;
+	one = 1;
+	one64 = one;
+	s32($array) = one64;
+	s32($array)[2] = 4;
 	ret;
 }
 
@@ -16,4 +22,4 @@ fn s32 main()
 	ret 0;
 }
 
-export main, foo, p;
+export main, foo, p, one64;

@@ -41,11 +41,13 @@ Definition and Declaration
 
 <svardefinition>	::= <type> (<id> ',')+ ';'
 <vardefinition>		::= <type> (<id> ['=' <value>])+ ';'
-<funcdefinition>	::= 'fn' <type> id '(' (<type> id)* ')' <block>
-<funcdeclaration>	::= 'dcl' 'fn' <type> id '(' <type>* ')';
+<funcdefinition>	::= 'fn' <type> <id> '(' (<type> <id>)* ')' <block>
+<funcdeclaration>	::= 'dcl' 'fn' <type> <id> '(' <type>* ')';
+<vardeclaration>	::= 'dcl' <type> *<id> ',')+ ';'
 <export>		::= 'export' (<id> ',') + ';'
 
 <program>		::= (<funcdefinition>		|
 			     <funcdeclaration>		|
 			     <svardefinition>		|
+			     <vardeclaration>		|
 			     <export>)*

@@ -16,11 +16,6 @@ local gConf = {
 			debug = true,
 	      };
 
-local function
-report(msg, ...)
-	error(msg:format(...));
-end
-
 --[[	The lexer	]]
 local gSource, gLook, gPos;
 local gSingleOpList <const> = {'?',':',',','|','^','&','+','-','*','/','%',
@@ -54,6 +49,16 @@ local gType <const> =
 	};
 local gMainRegister = { [1] = "%al", [2] = "%ax",
 			[4] = "%eax", [8] =  "%rax" };
+
+local function
+report(msg, ...)
+	local line = 1;
+	for _ in gSource:sub(1, gPos):gmatch('\n')
+	do
+		line = line + 1;
+	end
+	error("At line " .. line .. ": " ..msg:format(...));
+end
 
 local function
 next()
@@ -163,6 +168,19 @@ getLocalLabel()
 	return ".L" .. (gLabel - 1);
 end
 
+--[[
+--	Symbol Table:
+--	- Indexed by symbol name
+--
+--	Symbol Properties
+--	  o type	type name, "function" for functions
+--	  o static	is it stored in bss
+--	  o offset	For dynamic variables. Offset from %ebp
+--	  o global	will it be exported?
+--	  o imported	Is it defined in other object files?
+--		.
+--]]
+
 local function
 printSymtab(symtab)
 	if not gConf.debug
@@ -208,11 +226,61 @@ getSymAddress(name, sym)
 	end
 end
 
+local function
+doAddressing(symtab, type, action)
+	local ts = gType[type].size;
+	match '(';
+	pValue(symtab);
+	match ')';
+	emit "pushq	%rax";
+
+	local scale = "";
+	if gLook.type == '['
+	then
+		scale = ", %rdx, " .. ts;
+		match '[';
+		pValue(symtab);
+		match ']';
+
+		emit "pushq	%rax";
+	end
+
+	if action
+	then
+		action();
+	end
+
+	if scale ~= ""
+	then
+		emit "popq	%rdx";
+	end
+
+	emit("popq	%rbx");
+
+	return ts, scale;
+end
+
+local function
+doExtending(dest, src)
+	if gType[dest].size <= gType[src].size
+	then
+		return;
+	elseif gType[src].size == 32 and gType[dest].size == 64 and
+	       not gType[dest.signed]
+	then
+		emit "movl	%eax,	%rax";
+	end
+
+	emit(("mov%sx	%s,	%s"):format(
+	     gType[dest].signed and 's' or 'z',
+	     gMainRegister[gType[src].size], gMainRegister[gType[dest].size]));
+end
+
 pFactor = function(symtab)
 	if gLook.type == "integer"
 	then
 		emit(("movq	$%d,	%%rax"):format(match("integer").value));
-		return gType.val;
+		return "val";
 	elseif gLook.type == "$"
 	then
 		match '$';
@@ -220,7 +288,15 @@ pFactor = function(symtab)
 		local sym = checkSym(symtab, id);
 		emit(("leaq	%s,	%%rax"):format(
 		     getSymAddress(id, sym)));
-		return gType.ptr;
+		return "ptr";
+	elseif gLook.type == "id"
+	then
+		local id	= match("id").id;
+		local sym	= checkSym(symtab, id);
+		emit(("mov	(%s),	%s"):format(
+		     getSymAddress(id, sym),
+		     gMainRegister[gType[sym.type].size]));
+		return symtab[id].type;
 	else
 		unexpected();
 	end
@@ -241,7 +317,7 @@ pFuncCall = function(id, symtab)
 	match '(';
 	match ')';
 
-	emit("callq " .. id);
+	emit("callq	" .. id);
 
 	return;
 end
@@ -267,12 +343,29 @@ pStatement = function(symtab)
 		elseif gLook.type == '='
 		then
 			match '=';
-			local sym = symtab[id];
+			local sym = checkSym(symtab, id);
 			local type = pValue(symtab);
+			doExtending(sym.type, type);
 			match ';';
-			emit(("mov	%s,	%s"):format(
-			      gMainRegister[type.size],
+			emit(("mov	%s,	(%s)"):format(
+			      gMainRegister[gType[sym.type].size],
 			      getSymAddress(id, sym)));
+		else
+			unexpected();
+		end
+	elseif gLook.type == "type"
+	then
+		local t		= match("type").info;
+		if gLook.type == '('
+		then
+			local size, scale = doAddressing(symtab, t, function()
+				match '=';
+				-- Rightside type
+				doExtending(t, pValue(symtab));
+			end);
+			emit(("mov	%s,	(%%rbx%s)"):format(
+			     gMainRegister[size], scale));
+			match ';';
 		else
 			unexpected();
 		end
@@ -365,7 +458,6 @@ end
 -- XXX: Add type checks
 local function
 pFuncDec(symtab)
-	match "dcl";
 	match "fn";
 
 	local prototype = {
@@ -388,6 +480,25 @@ pFuncDec(symtab)
 	end
 	match ')';
 	symtab[name] = prototype;
+end
+
+local function
+pVarDec(symtab)
+	local t = match("type").info;
+
+	while gLook.type == "id"
+	do
+		symtab[match("id").id] = {
+						static	= true,
+						type	= t,
+						imported= true,
+					 };
+		if gLook.type ~= ','
+		then
+			break;
+		end
+		match ',';
+	end
 end
 
 local function
@@ -441,7 +552,16 @@ pProgram()
 			pFuncDef(symtab);
 		elseif gLook.type == "dcl"
 		then
-			pFuncDec(symtab);
+			match "dcl";
+			if gLook.type == "fn"
+			then
+				pFuncDec(symtab);
+			elseif gLook.type == "type"
+			then
+				pVarDec(symtab);
+			else
+				unexpected();
+			end
 			match ';';
 		elseif gLook.type == "type"
 		then
@@ -456,10 +576,11 @@ pProgram()
 		end
 	end
 
-	emit(".data");
+	emit(".bss");
 	for name, info in pairs(symtab)
 	do
-		if info.static and info.type ~= "function"
+		if info.static and info.type ~= "function" and
+		   not info.imported
 		then
 			local size = gType[info.type].size;
 			emitLabel(name);
