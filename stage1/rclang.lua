@@ -220,9 +220,9 @@ local function
 getSymAddress(name, sym)
 	if sym.type == "function" or sym.static
 	then
-		return name;
+		return '(' ..name .. ')';
 	else
-		return ("%%%d(%rbp)"):format(sym.offset);
+		return ("%d(%%rbp)"):format(sym.offset);
 	end
 end
 
@@ -261,7 +261,7 @@ doAddressing(symtab, type, action)
 end
 
 local function
-doExtending(dest, src)
+doCast(dest, src)
 	if gType[dest].size <= gType[src].size
 	then
 		return;
@@ -293,7 +293,7 @@ pFactor = function(symtab)
 	then
 		local id	= match("id").id;
 		local sym	= checkSym(symtab, id);
-		emit(("mov	(%s),	%s"):format(
+		emit(("mov	%s,	%s"):format(
 		     getSymAddress(id, sym),
 		     gMainRegister[gType[sym.type].size]));
 		return symtab[id].type;
@@ -315,9 +315,35 @@ pFuncCall = function(id, symtab)
 	end
 
 	match '(';
+
+	local count = 0;
+	for i = 1, #sym.argType
+	do
+		count = count + 1;
+		local t = pValue(symtab);
+		doCast(sym.argType[i], t);
+		emit(("push	%s"):format(
+		     gMainRegister[gType[t].size]));
+		if gLook.type ~= ','
+		then
+			break;
+		end
+		match ',';
+	end
+
+	if count ~= #sym.argType
+	then
+		report("Argument number mismatches.");
+	end
+
 	match ')';
 
 	emit("callq	" .. id);
+	if sym.argSize
+	then
+		emit(("subq	$%d,	%%rsp"):format(
+		     sym.argSize))
+	end
 
 	return;
 end
@@ -345,9 +371,9 @@ pStatement = function(symtab)
 			match '=';
 			local sym = checkSym(symtab, id);
 			local type = pValue(symtab);
-			doExtending(sym.type, type);
+			doCast(sym.type, type);
 			match ';';
-			emit(("mov	%s,	(%s)"):format(
+			emit(("mov	%s,	%s"):format(
 			      gMainRegister[gType[sym.type].size],
 			      getSymAddress(id, sym)));
 		else
@@ -361,7 +387,7 @@ pStatement = function(symtab)
 			local size, scale = doAddressing(symtab, t, function()
 				match '=';
 				-- Rightside type
-				doExtending(t, pValue(symtab));
+				doCast(t, pValue(symtab));
 			end);
 			emit(("mov	%s,	(%%rbx%s)"):format(
 			     gMainRegister[size], scale));
@@ -395,22 +421,20 @@ pBlock = function(outsideScope, additional)
 end
 
 local function
-pFuncDef(symtab)
-	match "fn";
+pFuncHeader(symtab, def)
 	local prototype = {
 				type	= "function",
 				retType	= match("type").info,
 				argType	= {},
-				def	= true,
-				static	= true;
+				static	= true,
+				def	= def,
 			  };
 
 	local name = match("id").id;
-	if symtab[name] and symtab[name].def
+	if def and symtab[name] and symtab[name].def
 	then
 		report("Duplicated definition of function %s", name);
 	end
-	symtab[name] = prototype;
 
 	match '(';
 
@@ -438,16 +462,28 @@ pFuncDef(symtab)
 	end
 	prototype.argSize = argSize;
 
-	argSize = -argSize;
 	local argSyms = {};
 	for i, v in ipairs(prototype.argType)
 	do
 		argSyms[argNames[i]] = {
 					type	= v,
-					offset	= argSize,
+					offset	= argSize + 8,
 				       };
-		argSize = argSize + gType[v].size;
+		argSize = argSize - gType[v].size;	-- 8bytes for pushed rbp
 	end
+
+	symtab[name] = prototype;
+
+	return name, prototype, argSyms;
+end
+
+
+local function
+pFuncDef(symtab)
+	match "fn";
+
+	local name, sym, argSyms = pFuncHeader(symtab, true);
+	sym.def = true;
 
 	emitLabel(name);
 	emit "push	%rbp";
@@ -459,27 +495,7 @@ end
 local function
 pFuncDec(symtab)
 	match "fn";
-
-	local prototype = {
-				type	= "function",
-				retType	= match("type").info,
-				argType = {},
-				def	= false,
-				static	= true,
-			  };
-	local name = match("id").id;
-	match '(';
-	while gLook.type == "type"
-	do
-		table.insert(prototype.argType, match("type").info);
-		if gLook.type ~= ','
-		then
-			break;
-		end
-		next();
-	end
-	match ')';
-	symtab[name] = prototype;
+	pFuncHeader(symtab, false);
 end
 
 local function

@@ -1,0 +1,18 @@
+val a, b;
+dcl fn val print();
+
+fn val assignment(val c, val d)
+{
+	a = c;
+	b = d;
+	ret;
+}
+
+fn s32 main()
+{
+	assignment(1, 2);
+	print();
+	ret;
+}
+
+export a, b, main;
