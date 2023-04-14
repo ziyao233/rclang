@@ -171,6 +171,8 @@ end
 --[[
 --	Symbol Table:
 --	- Indexed by symbol name
+--	- @totalSize:	TOtal size of all local variables
+--	- @thisSize:	Total size of variables defined in this block
 --
 --	Symbol Properties
 --	  o type	type name, "function" for functions
@@ -178,7 +180,7 @@ end
 --	  o offset	For dynamic variables. Offset from %ebp
 --	  o global	will it be exported?
 --	  o imported	Is it defined in other object files?
---		.
+--.
 --]]
 
 local function
@@ -265,10 +267,11 @@ doCast(dest, src)
 	if gType[dest].size <= gType[src].size
 	then
 		return;
-	elseif gType[src].size == 32 and gType[dest].size == 64 and
-	       not gType[dest.signed]
+	elseif gType[src].size == 4 and gType[dest].size == 8 and
+	       not gType[dest].signed
 	then
-		emit "movl	%eax,	%rax";
+		emit "movl	%eax,	%eax";
+		return;
 	end
 
 	emit(("mov%sx	%s,	%s"):format(
@@ -293,9 +296,16 @@ pFactor = function(symtab)
 	then
 		local id	= match("id").id;
 		local sym	= checkSym(symtab, id);
-		emit(("mov	%s,	%s"):format(
-		     getSymAddress(id, sym),
-		     gMainRegister[gType[sym.type].size]));
+		if sym.type == "function"
+		then
+			pFuncCall(id, symtab);
+			return sym.retType;
+		else
+			emit(("mov	%s,	%s"):format(
+			     getSymAddress(id, sym),
+			     gMainRegister[gType[sym.type].size]));
+			return symtab[id].type;
+		end
 		return symtab[id].type;
 	else
 		unexpected();
@@ -339,13 +349,45 @@ pFuncCall = function(id, symtab)
 	match ')';
 
 	emit("callq	" .. id);
-	if sym.argSize
+	if sym.argSize ~= 0
 	then
-		emit(("subq	$%d,	%%rsp"):format(
+		emit(("addq	$%d,	%%rsp"):format(
 		     sym.argSize))
 	end
 
 	return;
+end
+
+local function
+pVarDef(symtab, t)
+	while gLook.type == "id"
+	do
+		local id = match("id").id;
+		symtab["@totalSize"] = symtab["@totalSize"] + gType[t].size;
+		symtab["@thisSize"]  = symtab["@thisSize"] + gType[t].size;
+		symtab[id] = {
+				type	= t,
+				offset	= -symtab["@totalSize"],
+			     };
+		emit(("subq	$%d,	%%rsp"):format(
+		     gType[t].size));
+
+		if gLook.type == '='
+		then
+			match '=';
+			local rt = pValue(symtab);
+			doCast(t, rt);
+			emit(("mov	%s,	%d(%%rbp)"):format(
+			     gMainRegister[gType[t].size],
+			     symtab[id].offset));
+		end
+
+		if gLook.type ~= ','
+		then
+			break;
+		end
+		match ',';
+	end
 end
 
 pStatement = function(symtab)
@@ -392,16 +434,25 @@ pStatement = function(symtab)
 			emit(("mov	%s,	(%%rbx%s)"):format(
 			     gMainRegister[size], scale));
 			match ';';
+		elseif gLook.type == "id"
+		then
+			pVarDef(symtab, t);
+			match ';';
 		else
 			unexpected();
 		end
+	elseif gLook.type == '{'
+	then
+		pBlock(symtab);
 	else
 		unexpected();
 	end
 end
 
-pBlock = function(outsideScope, additional)
+pBlock = function(outsideScope, totalSize, additional)
 	local symtab = deriveSymtab(outsideScope);
+	symtab["@totalSize"] = totalSize or outsideScope["@totalSize"];
+	symtab["@thisSize"]  = 0;
 	for name, info in pairs(additional or {})
 	do
 		symtab[name] = info;
@@ -418,6 +469,12 @@ pBlock = function(outsideScope, additional)
 	end
 
 	match '}';
+
+	if symtab["@thisSize"] > 0
+	then
+		emit(("subq	%d,	%%rsp"):format(
+		     symtab["@totalSize"]));
+	end
 end
 
 local function
@@ -488,7 +545,7 @@ pFuncDef(symtab)
 	emitLabel(name);
 	emit "push	%rbp";
 	emit "movq	%rsp,	%rbp";
-	pBlock(symtab, argSyms);
+	pBlock(symtab, 0, argSyms);
 end
 
 -- XXX: Add type checks
