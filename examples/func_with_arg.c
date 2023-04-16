@@ -1,10 +1,10 @@
 #include<stdio.h>
 
-extern long int a, b;
+extern unsigned long int a, b;
 
 void
 print(void)
 {
-	printf("%ld %ld\n", a, b);
+	printf("%lu %lu\n", a, b);
 	return;
 }

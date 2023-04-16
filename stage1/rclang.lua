@@ -180,7 +180,6 @@ end
 --	  o offset	For dynamic variables. Offset from %ebp
 --	  o global	will it be exported?
 --	  o imported	Is it defined in other object files?
---.
 --]]
 
 local function
@@ -228,6 +227,16 @@ getSymAddress(name, sym)
 	end
 end
 
+--[[
+--	Parse and gencode for addressing
+--
+--	type:	Location type
+--	action:	Function to call after the target address is computed
+--
+--	Return:
+--		Size of result in bytes
+--		Scale from %rbx
+--]]
 local function
 doAddressing(symtab, type, action)
 	local ts = gType[type].size;
@@ -244,7 +253,12 @@ doAddressing(symtab, type, action)
 		pValue(symtab);
 		match ']';
 
-		emit "pushq	%rax";
+		if action
+		then
+			emit "pushq	%rax";
+		else
+			emit "movq	%rax,	%rdx"
+		end
 	end
 
 	if action
@@ -252,7 +266,7 @@ doAddressing(symtab, type, action)
 		action();
 	end
 
-	if scale ~= ""
+	if scale ~= "" and action
 	then
 		emit "popq	%rdx";
 	end
@@ -307,6 +321,13 @@ pFactor = function(symtab)
 			return symtab[id].type;
 		end
 		return symtab[id].type;
+	elseif gLook.type == "type"
+	then
+		local t = match("type").info;
+		local ts, scale = doAddressing(symtab, t);
+		emit(("mov	(%%rbx%s), %s"):format(
+		     scale, gMainRegister[ts]));
+		return t;
 	else
 		unexpected();
 	end
