@@ -1,7 +1,6 @@
 #!/usr/bin/env lua5.4
 --[[
 --	rclang stage 1 compiler
---	Date:2023.04.11
 --	By MIT License.
 --	Copyright (c) 2023 Ziyao.
 --]]
@@ -221,7 +220,7 @@ local function
 getSymAddress(name, sym)
 	if sym.type == "function" or sym.static
 	then
-		return '(' ..name .. ')';
+		return name .. '(%rip)';
 	else
 		return ("%d(%%rbp)"):format(sym.offset);
 	end
