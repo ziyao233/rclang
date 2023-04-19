@@ -14,10 +14,10 @@ Expression
 <equality>		::= <relation> (('==' | '!=') <relation>)*
 <relation>		::= <shift> (('>' | '<' | '>=' | '<=') <shift>)*
 <shift>			::= <expr> (('<<' | '>>') <expr>)*
-<expr>			::= ['+' | '-'] <term> (('+' | '-') <term>)*
+<expr>			::= <term> (('+' | '-') <term>)*
 <term>			::= <factor> (('*' | '/' | '%') <factor>)*
 <factor>		::= <address> | num | id | '(' <value> ')' |
-			    <functioncall> | '$' <id>
+			    <functioncall> | '$' <id> | '(' '-' <value> ')'
 <address>		::= <type> '(' <value> ')' [ '[' <value> ']' ]
 <functioncall>		::= <id> '(' <value>* ')'
 

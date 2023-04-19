@@ -205,7 +205,8 @@ deriveSymtab(outside)
 			   );
 end
 
-local pFuncDef, pStatement, pFuncCall, pValue, pFactor;
+local pFuncDef, pStatement, pFuncCall, pValue;
+local pFactor;
 
 local function
 checkSym(symtab, id)
@@ -327,10 +328,23 @@ pFactor = function(symtab)
 		emit(("mov	(%%rbx%s), %s"):format(
 		     scale, gMainRegister[ts]));
 		return t;
+	elseif gLook.type == '('
+	then
+		match '(';
+		local t = pValue(symtab);
+		match ')'
+		return t;
+	elseif gLook.type == '-'
+	then
+		match '-';
+		local t = pValue(symtab);
+		emit "neg	%rax";
+		return t;
 	else
 		unexpected();
 	end
 end
+
 
 pValue = function(symtab)
 	return pFactor(symtab);
