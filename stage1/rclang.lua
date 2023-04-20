@@ -206,7 +206,7 @@ deriveSymtab(outside)
 end
 
 local pFuncDef, pStatement, pFuncCall, pValue;
-local pFactor, pTerm;
+local pFactor, pTerm, pExpr;
 
 local function
 checkSym(symtab, id)
@@ -360,49 +360,70 @@ asmSign(signed)
 	return signed and '' or 'i';
 end
 
-pTerm = function(symtab)
-	local t			= pFactor(symtab);
-	print(t);
+local function
+genericParse(pOperand, handlers, symtab)
+	local t			= pOperand(symtab);
 	local size, signed	= gType[t].size, gType[t].signed;
 	castToWord(t, signed);
 
-	while gLook.type == '*' or gLook.type == '/' or
-	      gLook.type == '%'
+	while handlers[gLook.type]
 	do
 		local op = gLook.type;
 		next();
 
 		emit "pushq	%rax";
 
-		local tt		= pFactor(symtab);
+		local tt		= pOperand(symtab);
 		local tsize, tsigned	= gType[tt].size, gType[tt].signed;
-		size	= math.max(size, tsize);
-		signed	= signed and tsigned;
+		size 	= math.max(size, tsize);
+		signed 	= signed and tsigned;
 		castToWord(tt, signed);
-		if op == '*'
-		then
-			emit(asmSign(signed) .. "mulq	(%rsp)");
-		elseif op == '/'
-		then
-			emit "xchg	%rax,	(%rsp)";
-			_ = signed and emit("cqo") or
-				emit("xorq	%rdx,	%rdx");
-			emit(asmSign(signed) .. "divq	(%rsp)");
-		else
-			emit("xchg	%rax,	(%rsp)");
-			_ = signed and emit("cqo") or
-				emit("xorq	%rax,	%rax");
-			emit(asmSign(signed) .. "divq	(%rsp)");
-		end
 
-		emit "popq	%rdx";	-- Drop the value
+		handlers[op](signed, size);
+
+		emit "popq	%rdx";
 	end
 
 	return toTypeName(signed, size);
 end
 
+pTerm = function(symtab)
+	local handlers <const> = {
+		['*'] = function(signed, size)
+			emit(asmSign(signed) .. "mulq	(%rsp)");
+		end,
+		['/'] = function(signed, size)
+			emit "xchg	%rax,	(%rsp)";
+			_ = signed and emit("cqo") or
+				emit("xorq	%rdx,	%rdx");
+			emit(asmSign(signed) .. "divq	(%rsp)");
+		end,
+		['%'] = function(signed, size)
+			emit "xchg	%rax,	(%rsp)";
+			_ = signed and emit("cqo") or
+				emit("xorq	%rdx,	%rdx");
+			emit(asmSign(signed) .. "divq	(%rsp)");
+			emit "movq	%rdx,	%rax";
+		end,
+	};
+	return genericParse(pFactor, handlers, symtab);
+end
+
+pExpr = function(symtab)
+	local handlers <const> = {
+		['+'] = function(signed, size)
+			emit "addq	(%rsp),	%rax";
+		end,
+		['-'] = function(signed, size)
+			emit "subq	(%rsp), %rax";
+			emit "negq	%rax";
+		end,
+	};
+	return genericParse(pTerm, handlers, symtab);
+end
+
 pValue = function(symtab)
-	return pTerm(symtab);
+	return pExpr(symtab);
 end
 
 pFuncCall = function(id, symtab)

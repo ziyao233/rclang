@@ -4,6 +4,8 @@ sal c, d;
 val e;
 sal f;
 
+val g;
+
 fn val mul_div()
 {
 	a = 30 / 2;
@@ -12,6 +14,7 @@ fn val mul_div()
 	d = -10 / c;
 	e = a * b;
 	f = c * d;
+	g = 41 % 10;
 	ret;
 }
 
@@ -24,4 +27,4 @@ fn s32 main()
 	ret;
 }
 
-export a, b, c, d, e, f, main;
+export a, b, c, d, e, f, g, main;

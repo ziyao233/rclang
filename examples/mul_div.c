@@ -6,6 +6,8 @@ extern long int c, d;
 extern unsigned long int e;
 extern long int f;
 
+extern unsigned long int g;
+
 void
 print(void)
 {
@@ -13,5 +15,7 @@ print(void)
 	printf("%ld %ld\n", c, d);
 
 	printf("%lu %ld\n", e, f);
+
+	printf("%lu\n", g);
 	return;
 }
