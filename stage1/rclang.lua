@@ -206,7 +206,7 @@ deriveSymtab(outside)
 end
 
 local pFuncDef, pStatement, pFuncCall, pValue;
-local pFactor;
+local pFactor, pTerm;
 
 local function
 checkSym(symtab, id)
@@ -293,6 +293,11 @@ doCast(dest, src)
 	     gMainRegister[gType[src].size], gMainRegister[gType[dest].size]));
 end
 
+local function
+toTypeName(signed, size)
+	return (signed and 's' or 'u') .. (size * 8);
+end
+
 pFactor = function(symtab)
 	if gLook.type == "integer"
 	then
@@ -339,15 +344,65 @@ pFactor = function(symtab)
 		match '-';
 		local t = pValue(symtab);
 		emit "neg	%rax";
-		return t;
+		return toTypeName(true, gType[t].size);
 	else
 		unexpected();
 	end
 end
 
+local function
+castToWord(src, signed)
+	doCast(signed and "sal" or "val", src);
+end
+
+local function
+asmSign(signed)
+	return signed and '' or 'i';
+end
+
+pTerm = function(symtab)
+	local t			= pFactor(symtab);
+	print(t);
+	local size, signed	= gType[t].size, gType[t].signed;
+	castToWord(t, signed);
+
+	while gLook.type == '*' or gLook.type == '/' or
+	      gLook.type == '%'
+	do
+		local op = gLook.type;
+		next();
+
+		emit "pushq	%rax";
+
+		local tt		= pFactor(symtab);
+		local tsize, tsigned	= gType[tt].size, gType[tt].signed;
+		size	= math.max(size, tsize);
+		signed	= signed and tsigned;
+		castToWord(tt, signed);
+		if op == '*'
+		then
+			emit(asmSign(signed) .. "mulq	(%rsp)");
+		elseif op == '/'
+		then
+			emit "xchg	%rax,	(%rsp)";
+			_ = signed and emit("cqo") or
+				emit("xorq	%rdx,	%rdx");
+			emit(asmSign(signed) .. "divq	(%rsp)");
+		else
+			emit("xchg	%rax,	(%rsp)");
+			_ = signed and emit("cqo") or
+				emit("xorq	%rax,	%rax");
+			emit(asmSign(signed) .. "divq	(%rsp)");
+		end
+
+		emit "popq	%rdx";	-- Drop the value
+	end
+
+	return toTypeName(signed, size);
+end
 
 pValue = function(symtab)
-	return pFactor(symtab);
+	return pTerm(symtab);
 end
 
 pFuncCall = function(id, symtab)

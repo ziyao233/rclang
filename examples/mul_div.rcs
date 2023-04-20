@@ -1,0 +1,27 @@
+val a, b;
+sal c, d;
+
+val e;
+sal f;
+
+fn val mul_div()
+{
+	a = 30 / 2;
+	b = 30 / a;
+	c = -10 / 2;
+	d = -10 / c;
+	e = a * b;
+	f = c * d;
+	ret;
+}
+
+dcl fn s32 print();
+
+fn s32 main()
+{
+	mul_div();
+	print();
+	ret;
+}
+
+export a, b, c, d, e, f, main;
