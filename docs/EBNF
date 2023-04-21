@@ -7,7 +7,7 @@ This document is in the public domain.
 
 Expression
 
-<value>			::= ['?'] <or> [':' <or>]
+<value>			::= ['?'] <value> [':' <value>]
 <or>			::= <and> ( '|' <and>)*
 <and>			::= <not> ('&' <not>)*
 <not>			::= ['!'] <equality>
@@ -35,7 +35,7 @@ Statements
 <block>			::= '{' <statement>* '}'
 <if>			::= 'if' <value> <statement> |
 			    ['else' <statement>]
-<for>			::= 'for' <value> <block>
+<for>			::= 'for' <value> <statement>
 
 Definition and Declaration
 

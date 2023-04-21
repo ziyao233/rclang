@@ -1,0 +1,14 @@
+val a;
+
+dcl fn val print();
+
+fn s32 main()
+{
+	a = ? 2 > 1 : 1 : 0;
+	print();
+	a = ? 2 < 1 : 1 : 0;
+	print();
+	ret 0;
+}
+
+export a, main;

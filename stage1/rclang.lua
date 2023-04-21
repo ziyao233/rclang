@@ -513,7 +513,28 @@ pOr = function(symtab)
 end
 
 pValue = function(symtab)
-	return pOr(symtab);
+	if gLook.type == '?'
+	then
+		match '?';
+		pValue(symtab);
+		local elseLabel, endLabel  = getLocalLabel(), getLocalLabel();
+		emit "testq	%rax,	%rax";
+		emit("jnz	" .. elseLabel);
+
+		match ':';
+		local t1 = pValue(symtab);
+		emit("jmp	" .. endLabel);
+
+		match ':';
+		emitLabel(elseLabel);
+		local t2 = pValue(symtab);
+		emitLabel(endLabel);
+		return toTypeName(gType[t1].signed and gType[t2].signed,
+				  math.max(gType[t1].size,
+					   gType[t2].size));
+	else
+		return pOr(symtab);
+	end
 end
 
 pFuncCall = function(id, symtab)
