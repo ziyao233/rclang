@@ -1,0 +1,29 @@
+fn val bsort(ptr array, val n)
+{
+	val i = 0;
+	for i < n {
+		val j = i;
+		for j < n {
+			if val(array)[i] > val(array)[j] {
+				val t = val(array)[i];
+				val(array)[i] = val(array)[j];
+				val(array)[j] = t;
+			}
+			j = j + 1;
+		}
+		i = i + 1;
+	}
+	ret;
+}
+
+dcl fn val print();
+dcl val array, n;
+
+fn s32 main()
+{
+	bsort($array, n);
+	print();
+	ret 0;
+}
+
+export main;

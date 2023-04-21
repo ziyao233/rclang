@@ -26,7 +26,7 @@ do
 	gSingleOp[c] = true;
 end
 local gKeywordList <const> = {"for", "fn", "if", "else", "dcl",
-			      "ret", "break", "export"};
+			      "ret", "break", "export", "szo"};
 local gKeyword = {};
 for _, keyword in pairs(gKeywordList)
 do
@@ -346,6 +346,12 @@ pFactor = function(symtab)
 		local t = pValue(symtab);
 		emit "neg	%rax";
 		return toTypeName(true, gType[t].size);
+	elseif gLook.type == "szo"
+	then
+		match "szo";
+		emit(("movq	$%d,	%%rax"):format(
+		      gType[match("type").info].size));
+		return "val";
 	else
 		unexpected();
 	end
@@ -442,23 +448,23 @@ end
 pRelation = function(symtab)
 	local handlers <const> = {
 		['<'] = function(signed, size)
-			emit "cmpq	(%rsp),	%rax";
+			emit "cmpq	%rax, (%rsp)";
 			emit((signed and "setl" or "setb") .. "	%al");
 			emit "andq	$1,	%rax";
 		end,
 		['>'] = function(signed, size)
-			emit "cmpq	(%rsp),	%rax";
+			emit "cmpq	%rax, (%rsp)";
 			emit "setl	%al";
 			emit((signed and "setg" or "seta") .. "	%al");
 			emit "andq	$1,	%rax";
 		end,
 		[">="] = function(signed, size)
-			emit "cmpq	(%rsp),	%rax";
+			emit "cmpq	%rax,	(%rsp)";
 			emit((signed and "setle" or "setbe") ..  "	%al");
 			emit "andq	$1,	%rax";
 		end,
 		["<="] = function(signed, size)
-			emit "cmpq	(%rsp),	%rax";
+			emit "cmpq	%rax,	(%rsp)";
 			emit((signed and "setge" or "setae") .. "	%al");
 			emit "andq	$1,	%rax";
 		end,
@@ -669,7 +675,7 @@ pStatement = function(symtab)
 	then
 		match "if";
 		local nextLabel = getLocalLabel();
-		pValue();
+		pValue(symtab);
 		emit "testq	%rax,	%rax";
 		emit("jz	" .. nextLabel);
 		pStatement(symtab);
@@ -684,6 +690,18 @@ pStatement = function(symtab)
 		else
 			emitLabel(nextLabel);
 		end
+	elseif gLook.type == "for"
+	then
+		match "for";
+
+		local condLabel, endLabel = getLocalLabel(), getLocalLabel();
+		emitLabel(condLabel);
+		pValue(symtab);
+		emit "testq	%rax,	%rax";
+		emit("jz	" .. endLabel);
+		pStatement(symtab);
+		emit("jmp	" .. condLabel);
+		emitLabel(endLabel);
 	else
 		unexpected();
 	end
@@ -712,7 +730,7 @@ pBlock = function(outsideScope, totalSize, additional)
 
 	if symtab["@thisSize"] > 0
 	then
-		emit(("subq	%d,	%%rsp"):format(
+		emit(("subq	$%d,	%%rsp"):format(
 		     symtab["@totalSize"]));
 	end
 end

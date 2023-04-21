@@ -1,29 +1,40 @@
-fn val partition(ptr array,val n)
+fn val partition(ptr array, val n)
 {
-	val m = val(array)[n - 1],i = 0;
+	val m = val(array)[n - 1], i = 0;
 	ptr l = array;
 	for i < n - 1 {
 		if val(array)[i] < m {
 			val t = val(l);
 			val(l) = val(array)[i];
 			val(array)[i] = t;
-			l = l + szv;
+			l = l + szo val;
 		}
 		i = i + 1;
 	}
-	val(array + n - 1) = val(l);
+	val(array)[n - 1] = val(l);
 	val(l) = m;
-	ret l - array;
+	ret (l - array) / szo val;
 }
 
-fn val qsort(ptr array,val n)
+fn val qsort(ptr array, val n)
 {
-	if n < 2 {
+	if n < 2
 		ret;
-	}
 
-	val m = partition(array,n);
-	qsort(array,m);
-	qsort(array + m,n - m - 1);
+	val m = partition(array, n);
+	qsort(array, m);
+	qsort(array + m * szo val, n - m - 1);
 	ret;
 }
+
+dcl val array, n;
+dcl fn val print();
+
+fn s32 main()
+{
+	qsort($array, n);
+	print();
+	ret 0;
+}
+
+export main;
