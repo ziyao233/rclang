@@ -1,0 +1,22 @@
+dcl fn val msg1();
+dcl fn val msg2();
+
+fn s32 main()
+{
+	if (1)
+		msg1();
+
+	if (0)
+		msg1();
+	else
+		msg2();
+
+	if (1)
+		msg1();
+	else
+		msg2();
+
+	ret 0;
+}
+
+export main;

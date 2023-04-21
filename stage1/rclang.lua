@@ -164,7 +164,7 @@ end
 local function
 getLocalLabel()
 	gLabelCount = gLabelCount + 1;
-	return ".L" .. (gLabel - 1);
+	return ".L" .. (gLabelCount - 1);
 end
 
 --[[
@@ -644,6 +644,25 @@ pStatement = function(symtab)
 	elseif gLook.type == '{'
 	then
 		pBlock(symtab);
+	elseif gLook.type == "if"
+	then
+		match "if";
+		local nextLabel = getLocalLabel();
+		pValue();
+		emit "testq	%rax,	%rax";
+		emit("jz	" .. nextLabel);
+		pStatement(symtab);
+		if gLook.type == "else"
+		then
+			match "else";
+			local endLabel = getLocalLabel();
+			emit("jmp	" .. endLabel);
+			emitLabel(nextLabel);
+			pStatement(symtab);
+			emitLabel(endLabel);
+		else
+			emitLabel(nextLabel);
+		end
 	else
 		unexpected();
 	end
