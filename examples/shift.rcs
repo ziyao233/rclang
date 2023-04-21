@@ -1,0 +1,15 @@
+val a, b, c, d;
+
+dcl fn val print();
+
+fn s32 main()
+{
+	a = 1 << 15;
+	b = 1 << 8;
+	c = a >> 15;
+	d = b >> 8;
+	print();
+	ret 0;
+}
+
+export a, b, c, d, main;

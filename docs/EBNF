@@ -7,7 +7,7 @@ This document is in the public domain.
 
 Expression
 
-<value>			::= <or> [ '?' <or> ':' <value>]
+<value>			::= ['?'] <or> [':' <or>]
 <or>			::= <and> ( '|' <and>)*
 <and>			::= <not> ('&' <not>)*
 <not>			::= ['!'] <equality>

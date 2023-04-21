@@ -1,0 +1,11 @@
+val a, b;
+dcl fn val print();
+fn s32 main()
+{
+	a = 1 == 2;
+	b = 1 != 2;
+	print();
+	ret 0;
+}
+
+export a, b, main;

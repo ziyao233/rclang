@@ -1,0 +1,22 @@
+val one, two;
+sal none, ntwo;
+
+val a, b, c, d;
+
+dcl fn val print();
+
+fn s32 main()
+{
+	one	= 1;
+	two	= 2;
+	none	= -one;
+	ntwo	= -two;
+	a = one > two;
+	b = one < two;
+	c = none > ntwo;
+	d = none < ntwo;
+	print();
+	ret 0;
+}
+
+export a, b, c, d, main;

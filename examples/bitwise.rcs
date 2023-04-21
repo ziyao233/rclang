@@ -1,0 +1,18 @@
+val a;
+
+dcl fn val print();
+
+fn val main()
+{
+	a = 1 & 0;
+	print();
+	a = 65535 & 2;
+	print();
+	a = 65535 | 1;
+	print();
+	a = !a;
+	print();
+	ret 0;
+}
+
+export a, main;

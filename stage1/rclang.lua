@@ -206,7 +206,8 @@ deriveSymtab(outside)
 end
 
 local pFuncDef, pStatement, pFuncCall, pValue;
-local pFactor, pTerm, pExpr;
+local pFactor, pTerm, pExpr, pShift, pRelation, pEquality;
+local pNot, pAnd, pOr;
 
 local function
 checkSym(symtab, id)
@@ -422,8 +423,97 @@ pExpr = function(symtab)
 	return genericParse(pTerm, handlers, symtab);
 end
 
+pShift = function(symtab)
+	local handlers <const> = {
+		["<<"] = function(signed, size)
+			emit "xchgq	%rax,	(%rsp)";
+			emit "movb	(%rsp),	%cl";
+			emit "shlq	%cl,	%rax";
+		end,
+		[">>"] = function(signed, size)
+			emit "xchgq	%rax,	(%rsp)";
+			emit "movb	(%rsp),	%cl";
+			emit "shrq	%cl,	%rax";
+		end,
+	};
+	return genericParse(pExpr, handlers, symtab);
+end
+
+pRelation = function(symtab)
+	local handlers <const> = {
+		['<'] = function(signed, size)
+			emit "cmpq	(%rsp),	%rax";
+			emit((signed and "setl" or "setb") .. "	%al");
+			emit "andq	$1,	%rax";
+		end,
+		['>'] = function(signed, size)
+			emit "cmpq	(%rsp),	%rax";
+			emit "setl	%al";
+			emit((signed and "setg" or "seta") .. "	%al");
+			emit "andq	$1,	%rax";
+		end,
+		[">="] = function(signed, size)
+			emit "cmpq	(%rsp),	%rax";
+			emit((signed and "setle" or "setbe") ..  "	%al");
+			emit "andq	$1,	%rax";
+		end,
+		["<="] = function(signed, size)
+			emit "cmpq	(%rsp),	%rax";
+			emit((signed and "setge" or "setae") .. "	%al");
+			emit "andq	$1,	%rax";
+		end,
+	};
+	return genericParse(pShift, handlers, symtab);
+end
+
+pEquality = function(symtab)
+	local handlers <const> = {
+		["=="] = function(signed, size)
+			emit "cmpq	(%rsp),	%rax";
+			emit "sete	%al";
+			emit "andq	$1,	%rax";
+		end,
+		["!="] = function(signed, size)
+			emit "cmpq	(%rsp),	%rax";
+			emit "setne	%al";
+			emit "andq	$1,	%rax";
+		end,
+	};
+	return genericParse(pRelation, handlers, symtab);
+end
+
+pNot = function(symtab)
+	if gLook.type == '!'
+	then
+		match '!';
+		local t = pEquality(symtab);
+		emit "notq	%rax";
+		return t;
+	else
+		return pEquality(symtab);
+	end
+end
+
+pAnd = function(symtab)
+	local handlers <const> = {
+		['&'] = function(signed, size)
+			emit "andq	(%rsp),	%rax";
+		end,
+	};
+	return genericParse(pNot, handlers, symtab);
+end
+
+pOr = function(symtab)
+	local handlers <const> = {
+		['|'] = function(signed, size)
+			emit "orq	(%rsp),	%rax";
+		end,
+	};
+	return genericParse(pAnd, handlers, symtab);
+end
+
 pValue = function(symtab)
-	return pExpr(symtab);
+	return pOr(symtab);
 end
 
 pFuncCall = function(id, symtab)
