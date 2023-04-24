@@ -10,9 +10,8 @@ local string		= require "string";
 local math		= require "math";
 
 local gConf = {
-			output = arg[2],
-			input = arg[1],
-			debug = true,
+			debug	= false,
+			pie	= true,
 	      };
 
 --[[	The lexer	]]
@@ -222,7 +221,15 @@ local function
 getSymAddress(name, sym)
 	if sym.type == "function" or sym.static
 	then
-		return name .. '(%rip)';
+		if gConf.pie and sym.type ~= "function"
+		then
+			return name .. '(%rip)';
+		elseif gConf.pie and sym.type == "function"
+		then
+			return name .. "@GOTPCREL(%rip)"
+		else
+			return name;
+		end
 	else
 		return ("%d(%%rbp)"):format(sym.offset);
 	end
@@ -309,7 +316,8 @@ pFactor = function(symtab)
 		match '$';
 		local id = match("id").id;
 		local sym = checkSym(symtab, id);
-		emit(("leaq	%s,	%%rax"):format(
+		emit(("%s	%s,	%%rax"):format(
+		     sym.type == "function" and gConf.pie and "movq" or "leaq",
 		     getSymAddress(id, sym)));
 		return "ptr";
 	elseif gLook.type == "id"
@@ -925,10 +933,27 @@ end
 --	Main Program
 --]]
 
-if not gConf.input
-then
-	io.stderr:write("No source specified\n");
-	os.exit(-1);
+local i = 0;
+while i < #arg
+do
+	if arg[i] == "--debug"
+	then
+		gConf.debug	= true;
+	elseif arg[i] == "-no-pie"
+	then	gConf.pie	= false;
+	elseif arg[i] == "-o"
+	then
+		if not arg[i + 1]
+		then
+			io.stderr:write("Option -o needs an argument\n");
+			os.exit(-1);
+		end
+		gConf.output	= arg[i + 1];
+		i = i + 1;
+	else
+		gConf.input	= arg[i];
+	end
+	i = i + 1;
 end
 
 lexerInit(gConf.input);
