@@ -94,12 +94,12 @@ next()
 		then
 			gPos = gPos + 1;
 			gLook = {
-					type	= "signed-integer",
+					type	= "integer",
 					value 	= tonumber(sNum),
 				};
 		else
 			gLook =  {
-					type	= "integer",
+					type	= "signed-integer",
 					value	= tonumber(sNum),
 				 };
 		end
@@ -470,13 +470,12 @@ end
 pRelation = function(symtab)
 	local handlers <const> = {
 		['<'] = function(signed, size)
-			emit "cmpq	%rax, (%rsp)";
+			emit "cmpq	%rax,	(%rsp)";
 			emit((signed and "setl" or "setb") .. "	%al");
 			emit "andq	$1,	%rax";
 		end,
 		['>'] = function(signed, size)
-			emit "cmpq	%rax, (%rsp)";
-			emit "setl	%al";
+			emit "cmpq	%rax,	(%rsp)";
 			emit((signed and "setg" or "seta") .. "	%al");
 			emit "andq	$1,	%rax";
 		end,
@@ -752,8 +751,8 @@ pBlock = function(outsideScope, totalSize, additional)
 
 	if symtab["@thisSize"] > 0
 	then
-		emit(("subq	$%d,	%%rsp"):format(
-		     symtab["@totalSize"]));
+		emit(("addq	$%d,	%%rsp"):format(
+		     symtab["@thisSize"]));
 	end
 end
 
