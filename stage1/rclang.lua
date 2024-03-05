@@ -90,10 +90,19 @@ next()
 					      "(0x[%dabcdef]+)()" or
 					      "(%d+)()",
 					  gPos);
-		gLook =  {
-				type	= "integer",
-				value	= tonumber(sNum),
-			 };
+		if gSource:sub(gPos, gPos) == 'u'
+		then
+			gPos = gPos + 1;
+			gLook = {
+					type	= "signed-integer",
+					value 	= tonumber(sNum),
+				};
+		else
+			gLook =  {
+					type	= "integer",
+					value	= tonumber(sNum),
+				 };
+		end
 	elseif c:match("[%a_]")
 	then
 		local id;
@@ -311,6 +320,11 @@ pFactor = function(symtab)
 	then
 		emit(("movq	$%d,	%%rax"):format(match("integer").value));
 		return "val";
+	elseif gLook.type == "signed-integer"
+	then
+		emit(("movq	$%d, 	%%rax"):format(
+		     match("signed-integer").value));
+		return "sal";
 	elseif gLook.type == "$"
 	then
 		match '$';
@@ -466,12 +480,12 @@ pRelation = function(symtab)
 			emit((signed and "setg" or "seta") .. "	%al");
 			emit "andq	$1,	%rax";
 		end,
-		[">="] = function(signed, size)
+		["<="] = function(signed, size)
 			emit "cmpq	%rax,	(%rsp)";
 			emit((signed and "setle" or "setbe") ..  "	%al");
 			emit "andq	$1,	%rax";
 		end,
-		["<="] = function(signed, size)
+		[">="] = function(signed, size)
 			emit "cmpq	%rax,	(%rsp)";
 			emit((signed and "setge" or "setae") .. "	%al");
 			emit "andq	$1,	%rax";
@@ -533,7 +547,7 @@ pValue = function(symtab)
 		pValue(symtab);
 		local elseLabel, endLabel  = getLocalLabel(), getLocalLabel();
 		emit "testq	%rax,	%rax";
-		emit("jnz	" .. elseLabel);
+		emit("jz	" .. elseLabel);
 
 		match ':';
 		local t1 = pValue(symtab);
@@ -933,8 +947,8 @@ end
 --	Main Program
 --]]
 
-local i = 0;
-while i < #arg
+local i = 1;
+while i <= #arg
 do
 	if arg[i] == "--debug"
 	then

@@ -1,0 +1,31 @@
+dcl fn val ccall1(ptr func, val arg);
+dcl fn val putchar(s32 c);
+
+fn val print_unsigned(val num)
+{
+	if num == 0 {
+		ccall1($putchar, 48);
+		ret;
+	}
+
+	val mask = 1;
+	for num / mask
+		mask = mask * 10;
+	mask = mask / 10;
+
+	for mask {
+		ccall1($putchar, 48 + num / mask);
+		num = num % mask;
+		mask = mask / 10;
+	}
+	ret;
+}
+
+fn val println_unsigned(val num)
+{
+	print_unsigned(num);
+	ccall1($putchar, 10);
+	ret;
+}
+
+export print_unsigned, println_unsigned;

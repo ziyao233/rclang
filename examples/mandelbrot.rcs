@@ -1,0 +1,35 @@
+dcl fn val ccall1(ptr func, val arg);
+dcl fn val putchar(val c);
+
+fn val print(val v)
+{
+	ccall1($putchar, ? v > 1 << 15 : 43 : 32);
+	ret;
+}
+
+fn val mandelbrot()
+{
+	sal y0 = -20;
+	for y0 < 20 {
+		sal x0 = -40;
+		for x0 < 40 {
+			sal x = 0, y = 0, xtemp = 0;
+			val count = 0;
+			for x * x + y * y < (2 * 2 << 16) & count < 1000 {
+				xtemp = x * x - y * y + x0 << 16;
+				y = (2 << 16) * x * y + y0 << 16;
+				count = count + 1;
+			}
+			print(count);
+		}
+	}
+	ret;
+}
+
+fn s32 main()
+{
+	mandelbrot();
+	ret 0;
+}
+
+export main;
