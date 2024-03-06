@@ -3,25 +3,31 @@ dcl fn val putchar(val c);
 
 fn val print(val v)
 {
-	ccall1($putchar, ? v > 1 << 15 : 43 : 32);
+	ccall1($putchar, ? v < 500 : 97 : 32);
 	ret;
 }
 
 fn val mandelbrot()
 {
-	sal y0 = -20;
-	for y0 < 20 {
-		sal x0 = -40;
-		for x0 < 40 {
+	sal y0 = -15;
+	for y0 < 15 {
+		sal x0 = -66;
+		for x0 < 15 {
 			sal x = 0, y = 0, xtemp = 0;
 			val count = 0;
-			for x * x + y * y < (2 * 2 << 16) & count < 1000 {
-				xtemp = x * x - y * y + x0 << 16;
-				y = (2 << 16) * x * y + y0 << 16;
+			for x * x + y * y < (2 * 2 * 65536) & count < 1000 {
+				xtemp = ((x * x - y * y) / 256) +
+					(x0 * 256) * 3 / 100;
+				y = ((2 * x * y) / 256) +
+				    (y0 * 256) * 74 / 1000;
+				x = xtemp;
 				count = count + 1;
 			}
+			x0 = x0 + 1;
 			print(count);
 		}
+		y0 = y0 + 1;
+		ccall1($putchar, 10);
 	}
 	ret;
 }

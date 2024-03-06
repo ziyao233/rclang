@@ -17,7 +17,7 @@ Expression
 <expr>			::= <term> (('+' | '-') <term>)*
 <term>			::= <factor> (('*' | '/' | '%') <factor>)*
 <factor>		::= <address> | num | id | '(' <value> ')' |
-			    <functioncall> | '$' <id> | '(' '-' <value> ')' |
+			    <functioncall> | '$' <id> | '(' '-' <factor> ')' |
 			    'szo' <type>
 <address>		::= <type> '(' <value> ')' [ '[' <value> ']' ]
 <functioncall>		::= <id> '(' <value>* ')'

@@ -365,7 +365,7 @@ pFactor = function(symtab)
 	elseif gLook.type == '-'
 	then
 		match '-';
-		local t = pValue(symtab);
+		local t = pFactor(symtab);
 		emit "neg	%rax";
 		return toTypeName(true, gType[t].size);
 	elseif gLook.type == "szo"
@@ -386,7 +386,7 @@ end
 
 local function
 asmSign(signed)
-	return signed and '' or 'i';
+	return signed and 'i' or '';
 end
 
 local function
@@ -423,14 +423,20 @@ pTerm = function(symtab)
 		end,
 		['/'] = function(signed, size)
 			emit "xchg	%rax,	(%rsp)";
-			_ = signed and emit("cqo") or
-				emit("xorq	%rdx,	%rdx");
+			if signed then
+				emit("cqo");
+			else
+				emit "xorq	%rdx,	%rdx";
+			end
 			emit(asmSign(signed) .. "divq	(%rsp)");
 		end,
 		['%'] = function(signed, size)
 			emit "xchg	%rax,	(%rsp)";
-			_ = signed and emit("cqo") or
+			if signed then
+				emit("cqo");
+			else
 				emit("xorq	%rdx,	%rdx");
+			end
 			emit(asmSign(signed) .. "divq	(%rsp)");
 			emit "movq	%rdx,	%rax";
 		end,
